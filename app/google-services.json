@@ -1,0 +1,40 @@
+ {
+  "project_info": {
+    "project_number": "980663878626",
+    "firebase_url": "https://truckheavy.firebaseio.com",
+    "project_id": "truckheavy",
+    "storage_bucket": "truckheavy.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:980663878626:android:519ee60a1116b9116fefbb",
+        "android_client_info": {
+          "package_name": "com.andreasgift.targetapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "980663878626-r4jjcc0qb8kgbl88t9as1e1qrm1jmb25.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCY8ixezzAvyR0IVKr6mexdjUGdpn9UHT8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "980663878626-r4jjcc0qb8kgbl88t9as1e1qrm1jmb25.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
