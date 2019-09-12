@@ -5,9 +5,9 @@ import android.annotation.TargetApi;
 import android.app.ActivityManager;
 import android.content.Context;
 import android.content.Intent;
-import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -25,7 +25,8 @@ import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 
 import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
+import com.google.android.gms.common.GoogleApiAvailability;
+import com.google.android.gms.common.GoogleApiAvailabilityLight;
 import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
@@ -55,7 +56,8 @@ import java.util.Map;
 
 public class TrackingActivity extends AppCompatActivity implements OnMapReadyCallback {
     private static final String TAG = "TrackingActivity";
-    private SharedPreferences mPrefs;
+    private static final String STATUS_ONJOURNEY = "on journey";
+    private static final String STATUS_DELIVERED = "delivered";
 
     private final int MY_PERMISSIONS_REQUEST = 1001;
     private static final int GOOGLE_PLAY_RES_REQUEST = 7172;
@@ -81,6 +83,10 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
                 .findFragmentById(R.id.map);
         mapFragment.getMapAsync(this);
 
+        requestPermission(Manifest.permission.INTERNET);
+        requestPermission(Manifest.permission.ACCESS_FINE_LOCATION);
+        requestPermission(Manifest.permission.ACCESS_COARSE_LOCATION);
+
         destinationTV = findViewById(R.id.textView);
         finishJourneyButton = findViewById(R.id.finish_button);
 
@@ -92,19 +98,15 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                 if (dataSnapshot.exists()) {
                     currentOrder = dataSnapshot.getValue(Tracker.class);
-                    if (currentOrder.getStatus().equals("on journey")) {
+                    if (currentOrder.getStatus().equals(STATUS_ONJOURNEY)) {
                         inJourney = true;
                         mDestination = new LatLng(currentOrder.getLatitude(), currentOrder.getLongitude());
-                        retrieveDisplayData();
                         destinationTV.setText("Destination : " + mDestination.latitude + "," + mDestination.longitude);
                         finishJourneyButton.setEnabled(true);
                     }
-                    if (!isServiceRunning(TrackingService.class))
-                    {startLocationService();} else{
-                        //service never running before, check if the device is supported
-                        requestPermission(Manifest.permission.ACCESS_FINE_LOCATION);
-                        requestPermission(Manifest.permission.INTERNET);
-                        checkPlayServices();
+                    if (!isServiceRunning(TrackingService.class) && checkPlayServices() && checkGpsEnabled())
+                    {
+                        startLocationService();
                     }
                 }
             }
@@ -113,6 +115,7 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
             public void onCancelled(@NonNull DatabaseError databaseError) {
             }
         });
+        retrieveAndDisplayLoc();
     }
 
     public void finishJourney(View v) {
@@ -120,7 +123,7 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
             stopLocationService();
         }
         Map<String, Object> updateStatus = new HashMap<>();
-        updateStatus.put("status", "completed");
+        updateStatus.put("status", STATUS_DELIVERED);
 
         order.updateChildren(updateStatus);
         locations.removeValue();
@@ -156,16 +159,26 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
      * @return
      */
     private boolean checkPlayServices() {
-        int resultCode = GooglePlayServicesUtil.isGooglePlayServicesAvailable(this);
+        int resultCode = GoogleApiAvailabilityLight.getInstance().isGooglePlayServicesAvailable(this);
         if (resultCode != ConnectionResult.SUCCESS) {
-            if (GooglePlayServicesUtil.isUserRecoverableError(resultCode)) {
-                GooglePlayServicesUtil.getErrorDialog(resultCode, TrackingActivity.this, GOOGLE_PLAY_RES_REQUEST).show();
+            if (GoogleApiAvailability.getInstance().isUserResolvableError(resultCode)) {
+                GoogleApiAvailability.getInstance().getErrorDialog(TrackingActivity.this, resultCode, GOOGLE_PLAY_RES_REQUEST).show();
             } else {
                 Toast.makeText(this, "Device is not supported", Toast.LENGTH_LONG).show();
             }
             return false;
         }
         return true;
+    }
+
+    private boolean checkGpsEnabled() {
+        LocationManager lm = (LocationManager) getSystemService(LOCATION_SERVICE);
+        if (!lm.isProviderEnabled(LocationManager.GPS_PROVIDER)){
+            Toast.makeText(this,"Gps is not available",Toast.LENGTH_LONG).show();
+            return false;
+        } else {
+            return true;
+        }
     }
 
     /**
@@ -192,8 +205,6 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
                 if (permissions[i].equals(Manifest.permission.ACCESS_FINE_LOCATION)) {
                     if (grantResults[i] != PackageManager.PERMISSION_GRANTED) {
                         Toast.makeText(this, "Permission denied", Toast.LENGTH_LONG).show();
-                    } else {
-                        startLocationService();
                     }
                 }
             }
@@ -220,7 +231,7 @@ public class TrackingActivity extends AppCompatActivity implements OnMapReadyCal
     /**
      * Retrieve current location data from Firebase Database & display its routes
      */
-    private void retrieveDisplayData() {
+    private void retrieveAndDisplayLoc() {
         locations.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {

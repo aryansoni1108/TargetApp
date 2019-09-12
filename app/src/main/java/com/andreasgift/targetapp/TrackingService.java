@@ -3,18 +3,17 @@ package com.andreasgift.targetapp;
 import android.app.Service;
 import android.content.Intent;
 import android.location.Location;
-import android.location.LocationListener;
 import android.os.Bundle;
 import android.os.IBinder;
+import android.os.Looper;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
-import com.google.android.gms.common.ConnectionResult;
-import com.google.android.gms.common.GooglePlayServicesUtil;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.LocationCallback;
+import com.google.android.gms.location.LocationListener;
 import com.google.android.gms.location.LocationRequest;
 import com.google.android.gms.location.LocationResult;
 import com.google.android.gms.location.LocationServices;
@@ -31,6 +30,9 @@ public class TrackingService extends Service implements LocationListener {
     private static final String TAG = "TrackingService";
     private static final String VEHICLE_ID = "Truck01";
 
+    private static final String STATUS_ONJOURNEY = "on journey";
+    private static final String STATUS_DELIVERED = "delivered";
+
     private DatabaseReference locations; //contain target data
     private DatabaseReference order;
 
@@ -40,9 +42,9 @@ public class TrackingService extends Service implements LocationListener {
     private LocationCallback locationCallback;
     private Tracker mCurentOrder;
 
-    private final long UPDATE_INTERVAL = 1*30*1000;
-    private final long FASTEST_INTERVAL = 1*30*1000;
-    private final long DISTANCE = 10;
+    private final long UPDATE_INTERVAL = 2*60*1000;
+    private final long FASTEST_INTERVAL = 2*60*1000;
+    private final long DISTANCE = 0;
 
     @Override
     public void onCreate() {
@@ -50,11 +52,13 @@ public class TrackingService extends Service implements LocationListener {
         locations = FirebaseDatabase.getInstance().getReference("Locations");
         order = FirebaseDatabase.getInstance().getReference("Order");
 
+        buildGoogleAPiClient();
+
         order.addValueEventListener(new ValueEventListener() {
             @Override
             public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
                 mCurentOrder = dataSnapshot.getValue(Tracker.class);
-                if (mCurentOrder != null && mCurentOrder.getStatus().equals("on journey")){
+                if (mCurentOrder != null && mCurentOrder.getStatus().equals(STATUS_ONJOURNEY)){
                     startJourney();
                     Log.d(TAG, "startJourney is called");
                 } else {
@@ -69,12 +73,13 @@ public class TrackingService extends Service implements LocationListener {
             public void onLocationResult(LocationResult locationResult) {
                 super.onLocationResult(locationResult);
                 mCurrentLocation = new LatLng(locationResult.getLastLocation().getLatitude(), locationResult.getLastLocation().getLongitude());
-                locations.setValue(new Tracker(VEHICLE_ID, "on journey", mCurrentLocation.latitude, mCurrentLocation.longitude));
+                locations.setValue(new Tracker(VEHICLE_ID, STATUS_ONJOURNEY, mCurrentLocation.latitude, mCurrentLocation.longitude));
                 Log.d(TAG, "Location updates is sent to Firebase Database");
             }
         };
-        buildGoogleAPiClient();
     }
+
+
 
     @Override
     public void onDestroy() {
@@ -99,20 +104,6 @@ public class TrackingService extends Service implements LocationListener {
         sendLocationtoDatabase();
     }
 
-    @Override
-    public void onStatusChanged(String s, int i, Bundle bundle) {
-
-    }
-
-    @Override
-    public void onProviderEnabled(String s) {
-
-    }
-
-    @Override
-    public void onProviderDisabled(String s) {
-
-    }
 
     public void startJourney(){
         sendLocationtoDatabase();
@@ -128,7 +119,7 @@ public class TrackingService extends Service implements LocationListener {
         Log.d(TAG, "Location request is created");
 
         LocationServices.getFusedLocationProviderClient(this).
-                requestLocationUpdates(mLocationRequest,locationCallback,null);
+                requestLocationUpdates(mLocationRequest,locationCallback, null);
     }
 
     /**
@@ -140,7 +131,7 @@ public class TrackingService extends Service implements LocationListener {
                     @Override
                     public void onSuccess(Location location) {
                         mCurrentLocation = new LatLng(location.getLatitude(), location.getLongitude());
-                        locations.setValue(new Tracker(VEHICLE_ID, "on journey",mCurrentLocation.latitude, mCurrentLocation.longitude));
+                        locations.setValue(new Tracker(VEHICLE_ID, STATUS_ONJOURNEY,mCurrentLocation.latitude, mCurrentLocation.longitude));
                         Log.d(TAG, "Origin location is sent to Firebase Database");
                     }
                 })
